@@ -52,6 +52,16 @@ SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${CMAKE_SOURCE_DIR}/cmake)
 # respect user wishes and do not (re)define CMAKE_BUILD_TYPE.
 # If unset, set CMAKE_BUILD_TYPE = RelWithDebInfo
 
+LINK_DIRECTORIES(/root/install/usr/local/lib)
+set(CMAKE_CXX_STANDARD 17)
+SET(CMAKE_CXX_FLAGS_DEBUG
+      "${CMAKE_CXX_FLAGS_DEBUG} -DUSE_AWS -I/tmp/install1.9/usr/local/include -L/tmp/install1.9/usr/local/lib64 -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++0x")
+SET(CMAKE_CXX_FLAGS
+      "${CMAKE_CXX_FLAGS} -DUSE_AWS -I /export/data/mysql-5.6/rocksdb/third-party/gtest-1.8.1/fused-src -I/tmp/install1.9/usr/local/include -L/tmp/install1.9/usr/local/lib64 -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++17  -ldl")
+SET(CMAKE_C_FLAGS
+      "${CMAKE_C_FLAGS} -DUSE_AWS -I /export/data/mysql-5.6/rocksdb/third-party/gtest-1.8.1/fused-src -I/tmp/install1.9/usr/local/include -L/tmp/install1.9/usr/local/lib64 -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++17  -ldl")
+
+SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DUSE_AWS -I /export/data/mysql-5.6/rocksdb/third-party/gtest-1.8.1/fused-src -I/tmp/install1.9/usr/local/include -L/tmp/install1.9/usr/local/lib64 -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++17  -ldl")
 
 IF(DEFINED CMAKE_BUILD_TYPE)
   SET(HAVE_CMAKE_BUILD_TYPE TRUE)

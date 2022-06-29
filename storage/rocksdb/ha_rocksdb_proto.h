@@ -25,6 +25,7 @@
 /* RocksDB includes */
 #include "rocksdb/table.h"
 #include "rocksdb/utilities/transaction_db.h"
+#include "rocksdb/cloud/db_cloud.h"
 
 /* MyRocks header files */
 #include "./rdb_global.h"
@@ -81,7 +82,7 @@ extern const std::string TRUNCATE_TABLE_PREFIX;
   Access to singleton objects.
 */
 
-rocksdb::TransactionDB *rdb_get_rocksdb_db();
+rocksdb::DBCloud *rdb_get_rocksdb_db();
 
 class Rdb_cf_manager;
 Rdb_cf_manager &rdb_get_cf_manager();

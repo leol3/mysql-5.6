@@ -201,7 +201,7 @@ Rdb_cf_manager::get_all_cf(void) const {
 }
 
 int Rdb_cf_manager::remove_dropped_cf(Rdb_dict_manager *const dict_manager,
-                                      rocksdb::TransactionDB *const rdb,
+                                      rocksdb::DBCloud *const rdb,
                                       const uint32 &cf_id) {
   dict_manager->assert_lock_held();
   RDB_MUTEX_LOCK_CHECK(m_mutex);

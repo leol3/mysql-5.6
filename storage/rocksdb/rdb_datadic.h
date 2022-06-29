@@ -1414,7 +1414,7 @@ class Rdb_binlog_manager {
 class Rdb_dict_manager {
  private:
   mysql_mutex_t m_mutex;
-  rocksdb::TransactionDB *m_db = nullptr;
+  rocksdb::DBCloud *m_db = nullptr;
   rocksdb::ColumnFamilyHandle *m_system_cfh = nullptr;
   /* Utility to put INDEX_INFO and CF_DEFINITION */
 
@@ -1449,7 +1449,7 @@ class Rdb_dict_manager {
   Rdb_dict_manager &operator=(const Rdb_dict_manager &) = delete;
   Rdb_dict_manager() = default;
 
-  bool init(rocksdb::TransactionDB *const rdb_dict,
+  bool init(rocksdb::DBCloud *const rdb_dict,
             Rdb_cf_manager *const cf_manager,
             const my_bool enable_remove_orphaned_cf_flags);
 

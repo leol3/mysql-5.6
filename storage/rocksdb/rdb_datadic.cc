@@ -4824,7 +4824,7 @@ void Rdb_binlog_manager::update_slave_gtid_info(
   }
 }
 
-bool Rdb_dict_manager::init(rocksdb::TransactionDB *const rdb_dict,
+bool Rdb_dict_manager::init(rocksdb::DBCloud *const rdb_dict,
                             Rdb_cf_manager *const cf_manager,
                             const my_bool enable_remove_orphaned_dropped_cfs) {
   DBUG_ASSERT(rdb_dict != nullptr);

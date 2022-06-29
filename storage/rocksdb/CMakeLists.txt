@@ -5,6 +5,13 @@ IF(HAVE_SCHED_GETCPU)
   ADD_DEFINITIONS(-DHAVE_SCHED_GETCPU=1 -DROCKSDB_SCHED_GETCPU_PRESENT)
 ENDIF()
 
+SET(CMAKE_CXX_FLAGS_DEBUG
+      "${CMAKE_CXX_FLAGS_DEBUG} -DUSE_AWS -I/root/install/usr/local/include -L/root/install/usr/local/lib -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++0x")
+SET(CMAKE_CXX_FLAGS
+      "${CMAKE_CXX_FLAGS} -DUSE_AWS -I /usr/include/mysql-5.6/rocksdb/third-party/gtest-1.8.1/fused-src -I/root/install/usr/local/include -L/root/install/usr/local/lib -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++0x  -ldl")
+
+SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -DUSE_AWS -I /usr/include/mysql-5.6/rocksdb/third-party/gtest-1.8.1/fused-src -I/root/install/usr/local/include -L/root/install/usr/local/lib -laws-cpp-sdk-core -laws-cpp-sdk-s3 -laws-cpp-sdk-kinesis  -laws-cpp-sdk-transfer -std=c++0x  -ldl")
+
 # This is a strong requirement coming from RocksDB. No conditional checks here.
 ADD_DEFINITIONS(-DROCKSDB_PLATFORM_POSIX -DROCKSDB_LIB_IO_POSIX)
 
@@ -40,6 +47,8 @@ ELSE()
 
   # Statically include all RocksDB source
   SET(ROCKSDB_SOURCES
+    ../../rocksdb/cloud/cloud_lock_mgr.cc
+    ../../rocksdb/cloud/cloud_transaction.cc
     ${ROCKSDB_LIB_SOURCES}
   )
 ENDIF()
@@ -173,14 +182,14 @@ IF (HAVE_ZLIB_H)
   SET(rocksdb_static_libs ${rocksdb_static_libs} ${ZLIB_LIBRARY})
 ENDIF()
 
-SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt" "-ldl" "-lpthread")
+SET(rocksdb_static_libs ${rocksdb_static_libs} "-lrt" "-ldl" "-lpthread" "-laws-cpp-sdk-core" "-laws-cpp-sdk-kinesis" "-laws-cpp-sdk-s3" "-laws-cpp-sdk-transfer")
 
 MYSQL_ADD_PLUGIN(rocksdb_se ${ROCKSDB_SOURCES} STORAGE_ENGINE DEFAULT STATIC_ONLY
   LINK_LIBRARIES ${rocksdb_static_libs}
 )
 
 IF(WITH_EMBEDDED_SERVER)
-  ADD_SUBDIRECTORY(unittest)
+	#ADD_SUBDIRECTORY(unittest)
 ENDIF()
 
 IF (WITH_ROCKSDB_SE_STORAGE_ENGINE AND (NOT HAVE_EXTERNAL_ROCKSDB))

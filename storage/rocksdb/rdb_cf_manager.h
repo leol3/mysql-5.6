@@ -95,7 +95,7 @@ class Rdb_cf_manager {
       void) const;
 
   int remove_dropped_cf(Rdb_dict_manager *const dict_manager,
-                        rocksdb::TransactionDB *const rdb, const uint32 &cf_id);
+                        rocksdb::DBCloud *const rdb, const uint32 &cf_id);
 
   /* Used to delete cf by name */
   int drop_cf(Rdb_ddl_manager *const ddl_manager,

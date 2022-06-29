@@ -1772,7 +1772,7 @@ static int rdb_i_s_lock_info_fill_table(
 
   int ret = 0;
 
-  rocksdb::TransactionDB *const rdb = rdb_get_rocksdb_db();
+  rocksdb::DBCloud *const rdb = rdb_get_rocksdb_db();
 
   if (!rdb) {
     DBUG_RETURN(ret);

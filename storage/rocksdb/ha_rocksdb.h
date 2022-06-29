@@ -41,6 +41,7 @@
 #include "rocksdb/utilities/options_util.h"
 #include "rocksdb/utilities/transaction_db.h"
 #include "rocksdb/utilities/write_batch_with_index.h"
+#include "rocksdb/cloud/db_cloud.h"
 
 /* MyRocks header files */
 #include "./rdb_buff.h"

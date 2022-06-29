@@ -67,6 +67,9 @@
 #include "rocksdb/utilities/sim_cache.h"
 #include "rocksdb/utilities/write_batch_with_index.h"
 #include "util/stop_watch.h"
+#include "rocksdb/cloud/db_cloud.h"
+#include "rocksdb/options.h"
+#include "../rocksdb/cloud/cloud_env_impl.h"
 
 /* MyRocks includes */
 #include "./event_listener.h"
@@ -83,6 +86,7 @@
 #include "./rdb_psi.h"
 #include "./rdb_threads.h"
 
+using namespace rocksdb;
 // Internal MySQL APIs not exposed in any header.
 extern "C" {
 /**
@@ -251,7 +255,8 @@ static my_bool rocksdb_use_default_sk_cf = false;
 ///////////////////////////////////////////////////////////
 handlerton *rocksdb_hton;
 
-rocksdb::TransactionDB *rdb = nullptr;
+//rocksdb::TransactionDB *rdb = nullptr;
+rocksdb::DBCloud *rdb = nullptr;
 rocksdb::HistogramImpl *commit_latency_stats = nullptr;
 
 static std::shared_ptr<rocksdb::Statistics> rocksdb_stats;
@@ -708,7 +713,7 @@ static uint32_t rocksdb_seconds_between_stat_computes = 3600;
 static long long rocksdb_compaction_sequential_deletes = 0l;
 static long long rocksdb_compaction_sequential_deletes_window = 0l;
 static long long rocksdb_compaction_sequential_deletes_file_size = 0l;
-static uint32_t rocksdb_validate_tables = 1;
+static uint32_t rocksdb_validate_tables = 2;
 static char *rocksdb_datadir;
 static uint32_t rocksdb_max_bottom_pri_background_compactions=0;
 static uint32_t rocksdb_table_stats_sampling_pct;
@@ -910,7 +915,12 @@ static void rocksdb_trace_stub(THD *const thd,
   *static_cast<const char **>(var_ptr) = trace_opt_str_raw;
 }
 
+std::shared_ptr<CloudEnv> mRocksEnv;
+std::shared_ptr<Cache> cache;
+CloudEnv* cenv;
 static std::unique_ptr<rocksdb::DBOptions> rdb_init_rocksdb_db_options(void) {
+  DBUG_ENTER_FUNC();
+  sql_print_error("rdb_init_rocksdb_db_options begin");
   auto o = std::unique_ptr<rocksdb::DBOptions>(new rocksdb::DBOptions());
 
   o->create_if_missing = true;
@@ -921,7 +931,41 @@ static std::unique_ptr<rocksdb::DBOptions> rdb_init_rocksdb_db_options(void) {
 
   o->two_write_queues = true;
   o->manual_wal_flush = true;
-  o->enforce_single_del_contracts = false;
+
+  CloudEnvOptions cloud_env_options;
+  std::string kBucketSuffix = "index";
+  std::string kRegion = "spark";
+  const std::string bucketPrefix = "";
+  cloud_env_options.credentials.access_key_id = "";
+  cloud_env_options.credentials.secret_key = "";
+  cloud_env_options.src_bucket.SetBucketName(kBucketSuffix,bucketPrefix);
+  cloud_env_options.dest_bucket.SetBucketName(kBucketSuffix,bucketPrefix);
+  cloud_env_options.roll_cloud_manifest_on_open = false;
+  size_t capacity = 64815413;
+  int num_shard_bits = 1;
+  bool strict_capacity_limit = false;
+  double high_pri_pool_ratio = 0;
+
+  cache =
+      NewLRUCache(capacity, num_shard_bits, strict_capacity_limit,
+                  high_pri_pool_ratio, nullptr, kDefaultToAdaptiveMutex,
+                  CacheMetadataChargePolicy::kDontChargeCacheMetadata);
+  cloud_env_options.sst_file_cache = cache;
+  //CloudEnv* cenv;
+  rocksdb::Status s =
+      CloudEnv::NewAwsEnv(Env::Default(),
+                          kBucketSuffix, "myrocks2", kRegion,
+                          kBucketSuffix, "myrocks2", kRegion,
+                          cloud_env_options, nullptr, &cenv);
+  if (!s.ok()) {
+    fprintf(stderr, "Unable to create cloud env in bucket %s. %s\n",
+            kBucketSuffix.c_str(), s.ToString().c_str());
+    //DBUG_RETURN(HA_EXIT_FAILURE);
+  }
+  sql_print_error("rdb_init_rocksdb_db_options end");
+  mRocksEnv.reset(cenv);
+  o->env = mRocksEnv.get();
+  
   return o;
 }
 
@@ -2178,13 +2222,13 @@ static MYSQL_SYSVAR_UINT(
     PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
     "Verify all .frm files match all RocksDB tables (0 means no verification, "
     "1 means verify and fail on error, and 2 means verify but continue",
-    nullptr, nullptr, 1 /* default value */, 0 /* min value */,
+    nullptr, nullptr, 2 /* default value */, 0 /* min value */,
     2 /* max value */, 0);
 
 static MYSQL_SYSVAR_STR(datadir, rocksdb_datadir,
                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
                         "RocksDB data directory", nullptr, nullptr,
-                        "./.rocksdb");
+                        "myrocks2");
 
 static MYSQL_SYSVAR_UINT(
     table_stats_sampling_pct, rocksdb_table_stats_sampling_pct,
@@ -5624,6 +5668,48 @@ void rocksdb_truncation_table_cleanup(void) {
 
 static int rocksdb_init_func(void *const p) {
   DBUG_ENTER_FUNC();
+  sql_print_error("rocksdb_init_func begin\n");
+
+  CloudEnvOptions cloud_env_options;
+  std::string kBucketSuffix = "index";
+  std::string kRegion = "spark";
+  const std::string bucketPrefix = "";
+  cloud_env_options.credentials.access_key_id = "";
+  cloud_env_options.credentials.secret_key = "";
+  cloud_env_options.src_bucket.SetBucketName(kBucketSuffix,bucketPrefix);
+  cloud_env_options.dest_bucket.SetBucketName(kBucketSuffix,bucketPrefix);
+  cloud_env_options.roll_cloud_manifest_on_open = false;
+  size_t capacity = 64815413;
+  int num_shard_bits = 1;
+  bool strict_capacity_limit = false;
+  double high_pri_pool_ratio = 0;
+
+  cache =
+      NewLRUCache(capacity, num_shard_bits, strict_capacity_limit,
+                  high_pri_pool_ratio, nullptr, kDefaultToAdaptiveMutex,
+                  CacheMetadataChargePolicy::kDontChargeCacheMetadata);
+  cloud_env_options.sst_file_cache = cache;
+  //CloudEnv* cenv;
+  rocksdb::Status s =
+      CloudEnv::NewAwsEnv(Env::Default(),
+                          kBucketSuffix, "myrocks2", kRegion,
+                          kBucketSuffix, "myrocks2", kRegion,
+                          cloud_env_options, nullptr, &cenv);
+  if (!s.ok()) {
+    fprintf(stderr, "Unable to create cloud env in bucket %s. %s\n",
+            kBucketSuffix.c_str(), s.ToString().c_str());
+    DBUG_RETURN(HA_EXIT_FAILURE);
+  }
+  mRocksEnv.reset(cenv);
+  rocksdb_db_options->env = mRocksEnv.get();
+  rocksdb_db_options->create_if_missing = true;
+  rocksdb_db_options->listeners.push_back(std::make_shared<Rdb_event_listener>(&ddl_manager));
+  rocksdb_db_options->info_log_level = rocksdb::InfoLogLevel::INFO_LEVEL;
+  rocksdb_db_options->max_subcompactions = DEFAULT_SUBCOMPACTIONS;
+  rocksdb_db_options->max_open_files = -2;  // auto-tune to 50% open_files_limit
+
+  rocksdb_db_options->two_write_queues = true;
+  rocksdb_db_options->manual_wal_flush = true;
 
   if (rdb_check_rocksdb_corruption()) {
     // NO_LINT_DEBUG
@@ -5746,7 +5832,7 @@ static int rocksdb_init_func(void *const p) {
   rocksdb_db_options->delayed_write_rate = rocksdb_delayed_write_rate;
 
   std::shared_ptr<Rdb_logger> myrocks_logger = std::make_shared<Rdb_logger>();
-  rocksdb::Status s = rocksdb::CreateLoggerFromOptions(
+   s = rocksdb::CreateLoggerFromOptions(
       rocksdb_datadir, *rocksdb_db_options, &rocksdb_db_options->info_log);
   if (s.ok()) {
     myrocks_logger->SetRocksDBLogger(rocksdb_db_options->info_log);
@@ -5837,6 +5923,14 @@ static int rocksdb_init_func(void *const p) {
 
   std::vector<std::string> cf_names;
   rocksdb::Status status;
+  CloudEnvImpl* cenvimpl = static_cast<CloudEnvImpl*>(rocksdb_db_options->env);
+  //status = cenvimpl->LoadCloudManifest(rocksdb_datadir, false);
+  status = cenvimpl->LoadLocalCloudManifest(rocksdb_datadir);
+  if (!status.ok()  && status != Status::NotFound()  && status.code() != Status::kIOError) {
+    sql_print_information("RocksDB: Error LoadCloudManifest");
+    rdb_log_status_error(status, "Error LoadCloudManifest");
+    DBUG_RETURN(HA_EXIT_FAILURE);
+  }
   status = rocksdb::DB::ListColumnFamilies(*rocksdb_db_options, rocksdb_datadir,
                                            &cf_names);
   if (!status.ok()) {
@@ -5961,7 +6055,10 @@ static int rocksdb_init_func(void *const p) {
     If there are no column families, we're creating the new database.
     Create one column family named "default".
   */
-  if (cf_names.size() == 0) cf_names.push_back(DEFAULT_CF_NAME);
+  if (cf_names.size() == 0) {
+	  cf_names.push_back(DEFAULT_CF_NAME);
+	  //cf_names.push_back("__system__");
+  }
 
   std::vector<int> compaction_enabled_cf_indices;
 
@@ -6015,8 +6112,9 @@ static int rocksdb_init_func(void *const p) {
   // NO_LINT_DEBUG
   sql_print_information("RocksDB: Opening TransactionDB...");
 
-  status = rocksdb::TransactionDB::Open(
-      main_opts, tx_db_options, rocksdb_datadir, cf_descr, &cf_handles, &rdb);
+  std::string persistent_cache = "";
+  status = rocksdb::DBCloud::Open(
+      main_opts, tx_db_options, rocksdb_datadir, cf_descr, persistent_cache, 0, &cf_handles, &rdb);
 
   if (!status.ok()) {
     rdb_log_status_error(status, "Error opening instance");
@@ -15294,7 +15392,7 @@ bool ha_rocksdb::can_use_bloom_filter(THD *thd, const Rdb_key_def &kd,
 }
 
 /* For modules that need access to the global data structures */
-rocksdb::TransactionDB *rdb_get_rocksdb_db() { return rdb; }
+rocksdb::DBCloud *rdb_get_rocksdb_db() { return rdb; }
 
 Rdb_cf_manager &rdb_get_cf_manager() { return cf_manager; }
 
